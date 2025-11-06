@@ -1,0 +1,12 @@
+Dado o programa python anexo executado, tive a seguinte resposta:
+=== Iniciando processamento da folha de ponto ===
+Aten��o, estamos a processar a folha do m�s/ano: outubro/2025
+Conte�do extra�do da planilha:
+{'Sequencia': 1, 'Matricula': 1234567, 'Nome': 'Professor1', 'Nome da Aba': 'Prof1-1234567'}
+{'Sequencia': 2, 'Matricula': 1234568, 'Nome': 'Professor2', 'Nome da Aba': 'Prof2-1234568'}
+Nenhuma aba indicada para leitura ou valor inv�lido.
+Formul�rio preenchido salvo em: formularios_preenchidos\Carlos_Henrique_formulario.pdf
+=== Fim do processamento ===
+
+Garanto que esiste planilha excel com a aba apontada no trecho nome_abas = dados.get("Nome da Aba"). 
+Então por quevem a mensagem ""Nenhuma aba indicada para leitura ou valor inv�lido".

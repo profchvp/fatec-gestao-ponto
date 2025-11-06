@@ -1,0 +1,128 @@
+Dado o programa abaixo,
+import fitz  # PyMuPDF
+import os
+
+# Caminho do modelo PDF
+pdf_modelo = "_ model.pdf"
+
+# Pasta de saída para os formulários preenchidos
+output_dir = "formularios_preenchidos"
+os.makedirs(output_dir, exist_ok=True)
+
+# Função para preencher o PDF com dados de uma linha da planilha
+def preencher_pdf(dados, modelo_path, saida_path):
+    doc = fitz.open(modelo_path)
+    page = doc[0]
+
+    # Linha par Nome do professor
+    page.insert_text((80, 135), f"{dados['Nome']}", fontsize=9)
+    page.insert_text((360, 135), f"{dados['Matricula']}", fontsize=8)
+    page.insert_text((460, 135), f"{dados['Regime']}", fontsize=8)
+    page.insert_text((545, 135), f"{dados['Categoria']}", fontsize=8)
+
+    # linha para lista de disciplinas
+    disciplinas_texto = ", ".join(dados["Disciplinas"].values())
+    page.insert_text((95, 142), disciplinas_texto, fontsize=5)
+    page.insert_text((545, 144), f"{dados['CHS']}", fontsize=10)
+
+    # linha hora Atividade - HAE-O - HAE-C 
+    page.insert_text((98, 154), f"{dados['HoraAtividade']}", fontsize=9)
+    page.insert_text((295, 154), f"{dados['HAE-O']}", fontsize=9)
+    page.insert_text((473, 154), f"{dados['HAE-C']}", fontsize=9)
+
+    # Grade Manhã
+    for i, dia in enumerate(["SegundaManha", "TercaManha", "QuartaManha", "QuintaManha", "SextaManha", "SabadoManha"]):
+        y = 221 + i * 9
+        texto = dados["GradeManha"].get(dia, "")
+        page.insert_text((95, y), texto, fontsize=9)
+
+    # Grade Tarde
+    for i, dia in enumerate(["SegundaTarde", "TercaTarde", "QuartaTarde", "QuintaTarde", "SextaTarde", "SabadoTarde"]):
+        y = 221 + i * 9
+        texto = dados["GradeTarde"].get(dia, "")
+        page.insert_text((294, y), texto, fontsize=9)
+
+    # Grade Noite
+    for i, dia in enumerate(["SegundaNoite", "TercaNoite", "QuartaNoite", "QuintaNoite", "SextaNoite", "SabadoNoite"]):
+        y = 221 + i * 9
+        texto = dados["GradeNoite"].get(dia, "")
+        page.insert_text((473, y), texto, fontsize=9)
+     
+     #Observações da grade
+    page.insert_text((55, 273), f"{dados['Observacao1_Grade']}", fontsize=8)
+    page.insert_text((245, 273), f"{dados['Observacao2_Grade']}", fontsize=8)
+    page.insert_text((435, 273), f"{dados['Observacao3_Grade']}", fontsize=8)
+    
+    # Salvar o novo PDF
+    doc.save(saida_path)
+    doc.close()
+
+# Exemplo de dados para preenchimento
+dados_exemplo = {
+    "Nome": "Carlos Henrique",
+    "Matricula": "123456",
+    "Regime": "CLT",
+    "Categoria": "Docente",
+    "Disciplinas": {
+        "1": "Estrutura de Dados",
+        "2": "Banco de Dados"
+    },
+    "CHS": "20",
+    "HoraAtividade": "5",
+    "HAE-O": "2",
+    "HAE-C": "1",
+    "GradeManha": {
+        "SegundaManha": "X      X       X       X      X       X",
+        "TercaManha":   "X      X       X       X      X       X",
+        "QuartaManha":  "X      X       X       X      X       X",
+        "QuintaManha":  "X      X       X       X      X       X",
+        "SextaManha":   "X      X       X       X      X       X",
+        "SabadoManha":  "X      X       X       X      X       X"
+    },
+    "GradeTarde": {
+        "SegundaTarde": "X      X      X      X     X      X",
+        "TercaTarde":   "X      X      X      X     X      X",
+        "QuartaTarde":  "X      X      X      X     X      X", 
+        "QuintaTarde":  "X      X      X      X     X      X",
+        "SextaTarde":   "X      X      X      X     X      X",
+        "SabadoTarde":  "X      X      X      X     X      X"
+    },
+    "GradeNoite": {
+        "SegundaNoite": "X      X       X       X",
+        "TercaNoite":   "X      X       X       X",
+        "QuartaNoite":  "X      X       X       X",
+        "QuintaNoite":  "X      X       X       X",
+        "SextaNoite":   "X      X       X       X",
+        "SabadoNoite":  "X      X       X       X"
+    },
+    "Observacao1_Grade": "esta é a observacao #1 da grade",
+    "Observacao2_Grade": "esta é a observacao #2 da grade",
+    "Observacao3_Grade": "esta é a observacao #3 da gradex",
+}
+
+# Caminho de saída para o PDF preenchido
+saida_pdf = os.path.join(output_dir, f"{dados_exemplo['Nome'].replace(' ', '_')}_formulario.pdf")
+
+# Executar a função para preencher o PDF
+preencher_pdf(dados_exemplo, pdf_modelo, saida_pdf)
+
+# Mensagem de sucesso
+print(f"Formulário preenchido salvo em: {saida_pdf}")
+
+==============================
+Adaptar o programa para todo o processamento seja baseado em um arquivo "base_folhaPonto_aaaa-nn" onde, aaaa é o ano e  nn é um valor varial numerico que representará o mês de processamento.
+Os valores "aaaa-nn" serão obtidos a partir de duas variáveis que devem ser definidas no início do programa
+
+Abrir este arquivo e acessar a aba "parametros":
+            Acessar a coluna "AnoBase" e a coluna "MesBase".
+			Compor estas colunas e verificarcom o nome do arquivo "base_folhaPonto_aaaa-nn". Se forem diferentes, cancelar o programa
+			com mensagem informativa. 
+			Se OK, continuar o programa com a mensagem: 
+			    Ao iniciar o programa, dar amensagem: "Atenção, estamos a processar a folha do mes/ano : " onde  "x/aaaa" corresponde ao mes do calendário, por extenso e "aaaa" ao ano.
+     
+
+
+
+
+
+Utilizando o modelo anexo, refatore o prgrama para que seja o quadro "folha de frequencia" seja preenchido da seguinte forma:

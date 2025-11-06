@@ -1,0 +1,15 @@
+Em uma planilha excel Tenho uma "Grade horária" que tem a seguinte configuração:
+Três turnos: Manha; tarde e noite, composta da seguinte forma:
+        Manha: matriz 6 x 6, que inicia na celula B19 a G24 
+		(Considere que os labels das colunas estao de B18 a G18)
+		Tarde: matriz 6 x 6, que inicia na celula H19 a M24 
+		(Considere que os labels das colunas estao de H18 a M18)
+		Noite: matriz 6 x 6, que inicia na celula N19 a Q24 
+		(Considere que os labels das colunas estao de N18 a Q18)
+
+O programa deverá montar uma tupla para guardar esta martiz
+Deverá ser mostrda o resultado
+
+
+
+ 

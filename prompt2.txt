@@ -1,0 +1,96 @@
+dado o programa abaixo import pandas as pd
+import fitz  # PyMuPDF
+import os
+
+# Caminho do modelo PDF
+pdf_modelo = "_ model.pdf"
+
+# Função para preencher o PDF com dados de uma linha da planilha
+def preencher_pdf(dados, modelo_path, saida_path):
+    doc = fitz.open(modelo_path)
+    page = doc[0]
+
+    # Linha par Nome do professor
+    page.insert_text((80, 135), f"{dados['Nome']}", fontsize=9)
+    page.insert_text((360, 135), f"{dados['Matricula']}", fontsize=8)
+    page.insert_text((460, 135), f"{dados['Regime']}", fontsize=8)
+    page.insert_text((545, 135), f"{dados['Categoria']}", fontsize=8)
+    # linha para lista de disciplinas
+    #disciplinas_texto = "\n".join(dados["Disciplinas"].values())
+    disciplinas_texto = ", ".join(dados["Disciplinas"].values())
+    page.insert_text((95, 142), disciplinas_texto, fontsize=5)
+    page.insert_text((545, 144), f"{dados['CHS']}", fontsize=10)
+    
+    #linha hora Atividade - HAE-O - HAE-C 
+    page.insert_text((98, 154), f"{dados['HoraAtividade']}", fontsize=9)
+    page.insert_text((295, 154), f"{dados['HAE-O']}", fontsize=9)
+    page.insert_text((473, 154), f"{dados['HAE-C']}", fontsize=9)
+    
+    #--------------------------Grade Maturina
+    # #Grade Manha-Segunda
+    gradeManha_texto = dados["GradeManha"]["SegundaManha"]
+    page.insert_text((96, 221), gradeManha_texto, fontsize=9)
+    #Grade Manha-Terça
+    gradeManha_texto = dados["GradeManha"]["TercaManha"]
+    page.insert_text((96, 230), gradeManha_texto, fontsize=9)
+    #Grade Manha-Quarta
+    gradeManha_texto = dados["GradeManha"]["QuartaManha"]
+    page.insert_text((96, 239), gradeManha_texto, fontsize=9)
+    #Grade Manha-Quinta
+    gradeManha_texto = dados["GradeManha"]["QuintaManha"]
+    page.insert_text((96, 248), gradeManha_texto, fontsize=9)
+    #Grade Manha-Sexta
+    gradeManha_texto = dados["GradeManha"]["SextaManha"]
+    page.insert_text((96, 257), gradeManha_texto, fontsize=9)
+    #Grade Manha-Sabado
+    gradeManha_texto = dados["GradeManha"]["SabadoManha"]
+    page.insert_text((96, 266), gradeManha_texto, fontsize=9)
+   
+    #--------------------------Grade Vespertina
+    #GradeTarde-Segunda
+    gradeManha_texto = dados["GradeTarde"]["SegundaTarde"]
+    page.insert_text((295, 221), gradeManha_texto, fontsize=9)
+    #GradeTarde-Terca
+    gradeManha_texto = dados["GradeTarde"]["TercaTarde"]
+    page.insert_text((295, 230), gradeManha_texto, fontsize=9)
+    #GradeTarde-Quarta
+    gradeManha_texto = dados["GradeTarde"]["QuartaTarde"]
+    page.insert_text((295, 239), gradeManha_texto, fontsize=9)
+    #GradeTarde-Quinta
+    gradeManha_texto = dados["GradeTarde"]["QuintaTarde"]
+    page.insert_text((295, 248), gradeManha_texto, fontsize=9)
+    #GradeTarde-Sexta
+    gradeManha_texto = dados["GradeTarde"]["SextaTarde"]
+    page.insert_text((295, 257), gradeManha_texto, fontsize=9)
+    #GradeTarde-Sabado
+    gradeManha_texto = dados["GradeTarde"]["SabadoTarde"]
+    page.insert_text((295, 266), gradeManha_texto, fontsize=9)
+    
+    #--------------------------Grade Noturna
+    #GradeNoite-Segunda
+    gradeManha_texto = dados["GradeNoite"]["SegundaNoite"]
+    page.insert_text((473, 221), gradeManha_texto, fontsize=9)
+    #GradeNoite-Terca
+    gradeManha_texto = dados["GradeNoite"]["TercaNoite"]
+    page.insert_text((473, 230), gradeManha_texto, fontsize=9)
+    #GradeNoite-Quarta
+    gradeManha_texto = dados["GradeNoite"]["QuartaNoite"]
+    page.insert_text((473, 239), gradeManha_texto, fontsize=9)
+    #GradeNoite-Quinta
+    gradeManha_texto = dados["GradeNoite"]["QuintaNoite"]
+    page.insert_text((473, 248), gradeManha_texto, fontsize=9)
+    #GradeNoite-Sexta
+    gradeManha_texto = dados["GradeNoite"]["SextaNoite"]
+    page.insert_text((473, 257), gradeManha_texto, fontsize=9)
+    #GradeNoite-Sabado
+    gradeManha_texto = dados["GradeNoite"]["SabadoNoite"]
+    page.insert_text((473, 266), gradeManha_texto, fontsize=9)
+
+
+    # Salvar o novo PDF
+    print ("fez o programa")
+    doc.save(saida_path)
+    doc.close()
+	refatore que a chamada da funcao def preencher_pdf(dados, modelo_path, saida_path)
+	                                     
+	seja executada, utilizando como base de modelo   o arquivo anexo 

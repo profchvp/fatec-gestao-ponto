@@ -1,0 +1,132 @@
+Dado o codigo python, altera a funcao "def preencher_pdf(dados, modelo_path, saida_path, excel_path):"
+para que seja obtido da aba, alem dos dados "Matrícula" e "Nome do Professor", seja recuperdo também os seguintes dados (colunas). Importante, cada coluna tera associado somente uma linha com os dados.
+
+"Regime Juridico",	"Carga Horária",	"Hora Atividade",	"HAE-O",	"HAE-C",	"Disciplina1",	
+"Disciplina2",	"Disciplina3"	,Disciplina4,	"Disciplina5,	"Disciplina6",	
+"SEGM1°",	"TERM1°",	"QUAM1°",	"QUIM1°",	"SEXM1°",	"SABM1°",	
+"SEGM2°",	"TERM2°",	"QUAM2°",	"QUIM2°",	"SEXM2°",	"SABM2°",
+"SEGM3°",	"TERM3°",	"QUAM3°",	"QUIM3°",	"SEXM3°",	"SABM3°",
+"SEGM4°",	"TERM4°",	"QUAM4°",	"QUIM4°",	"SEXM4°",	"SABM4°",	
+"SEGM5°",	"TERM5°",	"QUAM5°",	"QUIM5°",	"SEXM5°",	"SABM5°",	
+"SEGM6°",	"TERM6°",	"QUAM6°",	"QUIM6°",	"SEXM6°",	"SABM6°",	
+"SEGT1°",	"TERT1°",	"QUAT1°",	"QUIT1°",	"SEXT1°",	"SABT1°",	
+"SEGT2°",	"TERT2°",	"QUAT2°",	"QUIT2°",	"SEXT2°",	"SABT2°",	
+"SEGT3°",	"TERT3°",	"QUAT3°",	"QUIT3°",	"SEXT3°",	"SABT3°",	
+"SEGT4°",	"TERT4°",	"QUAT4°",	"QUIT4°",	"SEXT4°",	"SABT4°",	
+"SEGT5°",	"TERT5°",	"QUAT5°",	"QUIT5°",	"SEXT5°",	"SABT5°",	
+"SEGT6°",	"TERT6°",	"QUAT6°",	"QUIT6°",	"SEXT6°",	"SABT6°",	
+"SEGN1°",	"TERN1°",	"QUAN1°",	"QUIN1°",	"SEXN1°",	"SABN1°",	
+"SEGN2°",	"TERN2°",	"QUAN2°",	"QUIN2°",	"SEXN2°",	"SABN2°",	
+"SEGN3°",	"TERN3°",	"QUAN3°",	"QUIN3°",	"SEXN3°",	"SABN3°",	
+"SEGN4°",	"TERN4°",	"QUAN4°",	"QUIN4°",	"SEXN4°",	
+"Obs-Manha",	"Obs-Tarde" e	"Obs-Noite"
+
+este dados serao a base para preencher o formulário 
+import fitz  # PyMuPDF
+import os
+import pandas as pd
+from babel.dates import format_date
+from datetime import datetime
+
+# ===============================
+# Constantes globais
+# ===============================
+ANO_REFERENCIA = 2025
+MES_REFERENCIA = 10
+INICIO_DADOS_PROFESSOR = 10  # Linha onde inicia a lista de professores
+
+def inicializar_programa():
+    nome_arquivo_base = f"Base-folhaPonto-{ANO_REFERENCIA}-{MES_REFERENCIA}.xlsx"
+    if not os.path.exists(nome_arquivo_base):
+        print(f"Arquivo {nome_arquivo_base} não encontrado.")
+        return None
+
+    df_parametros = pd.read_excel(nome_arquivo_base, sheet_name='parametros', engine='openpyxl')
+    ano_base = int(df_parametros.iloc[3, 1])
+    mes_base = int(df_parametros.iloc[4, 1])
+
+    if ano_base != ANO_REFERENCIA or mes_base != MES_REFERENCIA:
+        print(f"Erro: Ano/Mês base do arquivo ({ano_base}/{mes_base}) não corresponde ao esperado ({ANO_REFERENCIA}/{MES_REFERENCIA}).")
+        return None
+
+    data = datetime(ANO_REFERENCIA, MES_REFERENCIA, 1)
+    nome_mes = format_date(data, "MMMM", locale="pt_BR")
+    print(f"Atenção, estamos a processar a folha do mês/ano: {nome_mes}/{ANO_REFERENCIA}")
+
+    df_dados = df_parametros.iloc[INICIO_DADOS_PROFESSOR:, [0, 1, 2, 3]]
+    df_dados.columns = ['Sequencia', 'Matricula', 'Nome', 'Nome da Aba']
+    df_dados = df_dados.dropna(how='all')
+
+    dicionario_dados = df_dados.to_dict(orient='records')
+    return ANO_REFERENCIA, MES_REFERENCIA, df_parametros, dicionario_dados
+
+def preencher_pdf(dados, modelo_path, saida_path, excel_path):
+    nome_abas = dados.get("Nome da Aba")
+    if not nome_abas or not isinstance(nome_abas, str):
+        print("Nenhuma aba indicada para leitura ou valor inválido.")
+        return
+
+    abas_solicitadas = [aba.strip() for aba in nome_abas.split(",") if aba.strip()]
+    if not abas_solicitadas:
+        print("Nenhuma aba válida encontrada.")
+        return
+
+    try:
+        abas_disponiveis = pd.ExcelFile(excel_path).sheet_names
+        print(f"Abas disponíveis no arquivo: {abas_disponiveis}")
+        print(f"Abas solicitadas: {abas_solicitadas}")
+    except Exception as e:
+        print(f"Erro ao acessar o arquivo Excel: {e}")
+        return
+
+    for aba in abas_solicitadas:
+        try:
+            if aba not in abas_disponiveis:
+                print(f"Aba '{aba}' não existe no arquivo.")
+                continue
+            df_aba = pd.read_excel(excel_path, sheet_name=aba, engine='openpyxl')
+            print(f"\n--- Dados da aba '{aba}' ---")
+            colunas_esperadas = ["Matrícula", "Nome do Professor"]
+            if all(col in df_aba.columns for col in colunas_esperadas):
+                for _, row in df_aba.iterrows():
+                    print(f"Matrícula: {row['Matrícula']} | Nome do Professor: {row['Nome do Professor']}")
+            else:
+                print(f"Aba '{aba}' não contém as colunas esperadas: {colunas_esperadas}")
+                print(f"Colunas encontradas: {list(df_aba.columns)}")
+        except Exception as e:
+            print(f"Erro ao acessar aba '{aba}': {e}")
+
+    doc = fitz.open(modelo_path)
+    page = doc[0]
+    page.insert_text((80, 135), f"{dados.get('Nome', '')}", fontsize=9)
+    page.insert_text((360, 135), f"{dados.get('Matricula', '')}", fontsize=8)
+    doc.save(saida_path)
+    doc.close()
+
+def processamento_central():
+    resultado = inicializar_programa()
+    if resultado is None:
+        return
+
+    ano, mes, df_parametros, dicionario_dados = resultado
+    print("Conteúdo extraído da planilha:")
+    for item in dicionario_dados:
+        print(item)
+
+    pdf_modelo = "_ model.pdf"  # Ajuste para o caminho real do modelo PDF
+    output_dir = "formularios_preenchidos"
+    os.makedirs(output_dir, exist_ok=True)
+    excel_path = f"Base-folhaPonto-{ano}-{mes}.xlsx"
+
+    for dados in dicionario_dados:
+        saida_pdf = os.path.join(output_dir, f"{dados['Nome'].replace(' ', '_')}_formulario.pdf")
+        preencher_pdf(dados, pdf_modelo, saida_pdf, excel_path)
+        print(f"Formulário preenchido salvo em: {saida_pdf}")
+
+def main():
+    print("=== Iniciando processamento da folha de ponto ===")
+    processamento_central()
+    print("=== Fim do processamento ===")
+
+if __name__ == "__main__":
+    main()
