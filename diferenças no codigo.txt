@@ -1,0 +1,486 @@
+codigo-BKP4
+import fitz  # PyMuPDF
+import os
+import pandas as pd
+from babel.dates import format_date
+from datetime import datetime
+
+# ===============================
+# Constantes globais
+# ===============================
+ANO_REFERENCIA = 2025
+MES_REFERENCIA = 10
+INICIO_DADOS_PROFESSOR = 10  # Linha onde inicia a lista de professores
+
+def inicializar_programa():
+    """
+    Inicializa o programa:
+    - Verifica arquivo Excel
+    - Valida ano/mês
+    - Extrai lista de professores e abas
+    """
+    nome_arquivo_base = f"Base-folhaPonto-{ANO_REFERENCIA}-{MES_REFERENCIA}.xlsx"
+    if not os.path.exists(nome_arquivo_base):
+        print(f"Arquivo {nome_arquivo_base} não encontrado.")
+        return None
+
+    df_parametros = pd.read_excel(nome_arquivo_base, sheet_name='parametros', engine='openpyxl')
+    ano_base = int(df_parametros.iloc[3, 1])
+    mes_base = int(df_parametros.iloc[4, 1])
+
+    if ano_base != ANO_REFERENCIA or mes_base != MES_REFERENCIA:
+        print(f"Erro: Ano/Mês base do arquivo ({ano_base}/{mes_base}) não corresponde ao esperado ({ANO_REFERENCIA}/{MES_REFERENCIA}).")
+        return None
+
+    data = datetime(ANO_REFERENCIA, MES_REFERENCIA, 1)
+    nome_mes = format_date(data, "MMMM", locale="pt_BR")
+    print(f"Atenção, estamos a processar a folha do mês/ano: {nome_mes}/{ANO_REFERENCIA}")
+
+    df_dados = df_parametros.iloc[INICIO_DADOS_PROFESSOR:, [0, 1, 2, 3]]
+    df_dados.columns = ['Sequencia', 'Matricula', 'NomeProf', 'Nome da Aba']
+    df_dados = df_dados.dropna(how='all')
+
+    dicionario_dados = df_dados.to_dict(orient='records')
+    return ANO_REFERENCIA, MES_REFERENCIA, df_parametros, dicionario_dados
+
+def tratar_valor(val):
+    """Converte valor para string, substituindo NaN, 'nan' ou vazio por '......'."""
+    if pd.isna(val) or str(val).strip().lower() == 'nan' or str(val).strip() == '':
+        return '......'
+    return str(val).strip()
+
+def preencher_pdf(dados, modelo_path, saida_path, excel_path):
+    nome_abas = dados.get("Nome da Aba")
+    if not nome_abas or not isinstance(nome_abas, str):
+        print("Nenhuma aba indicada para leitura ou valor inválido.")
+        return
+
+    abas_solicitadas = [aba.strip() for aba in nome_abas.split(",") if aba.strip()]
+    if not abas_solicitadas:
+        print("Nenhuma aba válida encontrada.")
+        return
+
+    try:
+        abas_disponiveis = pd.ExcelFile(excel_path).sheet_names
+    except Exception as e:
+        print(f"Erro ao acessar o arquivo Excel: {e}")
+        return
+
+    dados_pdf = {
+        "NomeProf": tratar_valor(dados.get("NomeProf", "")),
+        "Matricula": tratar_valor(dados.get("Matricula", "")),
+        "Regime": "",
+        "Categoria": "",
+        "CargaHoraria": "",
+        "HoraAtividade": "",
+        "HAE-O": "",
+        "HAE-C": "",
+        "Disciplinas": [],
+        "GradeManha": [],
+        "GradeTarde": [],
+        "GradeNoite": [],
+        "ObsManha": "",
+        "ObsTarde": "",
+        "ObsNoite": ""
+    }
+
+    for aba in abas_solicitadas:
+        if aba not in abas_disponiveis:
+            print(f"Aba '{aba}' não existe no arquivo.")
+            continue
+        try:
+            df_aba = pd.read_excel(excel_path, sheet_name=aba, engine='openpyxl', header=11)
+            if df_aba.empty:
+                continue
+            row = df_aba.iloc[0]
+
+            dados_pdf["Regime"] = tratar_valor(row.get("Regime Juridico", ""))
+            dados_pdf["Categoria"] = tratar_valor(row.get("Categoria", ""))
+            dados_pdf["CargaHoraria"] = tratar_valor(row.get("Carga Horária", ""))
+            dados_pdf["HoraAtividade"] = tratar_valor(row.get("Hora Atividade", ""))
+            dados_pdf["HAE-O"] = tratar_valor(row.get("HAE-O", ""))
+            dados_pdf["HAE-C"] = tratar_valor(row.get("HAE-C", ""))
+
+            for i in range(1, 7):
+                col = f"Disciplina{i}"
+                if col in df_aba.columns:
+                    val = tratar_valor(row.get(col, ""))
+                    dados_pdf["Disciplinas"].append(val)
+
+            for turno, prefixo in [("GradeManha", "M"), ("GradeTarde", "T"), ("GradeNoite", "N")]:
+                for i in range(1, 7):
+                    for dia in ["SEG", "TER", "QUA", "QUI", "SEX", "SAB"]:
+                        col = f"{dia}{prefixo}{i}°"
+                        if col in df_aba.columns:
+                            val = tratar_valor(row.get(col, ""))
+                            dados_pdf[turno].append(val)
+
+            dados_pdf["ObsManha"] = tratar_valor(row.get("Obs-Manha", ""))
+            dados_pdf["ObsTarde"] = tratar_valor(row.get("Obs-Tarde", ""))
+            dados_pdf["ObsNoite"] = tratar_valor(row.get("Obs-Noite", ""))
+
+        except Exception as e:
+            print(f"Erro ao ler aba '{aba}': {e}")
+
+    doc = fitz.open(modelo_path)
+    page = doc[0]
+
+    page.insert_text((80, 135), dados_pdf["NomeProf"], fontsize=9)
+    page.insert_text((360, 135), dados_pdf["Matricula"], fontsize=8)
+    page.insert_text((460, 135), dados_pdf["Regime"], fontsize=8)
+    page.insert_text((540, 135), dados_pdf["Categoria"], fontsize=8)
+
+    # Disciplinas quebradas em duas linhas
+    disciplinas_texto = dados_pdf["Disciplinas"]
+    if disciplinas_texto:
+        metade = len(disciplinas_texto) // 2 + len(disciplinas_texto) % 2
+        linha1 = ", ".join(disciplinas_texto[:metade])
+        linha2 = ", ".join(disciplinas_texto[metade:])
+        page.insert_text((95, 140), linha1, fontsize=6)
+        page.insert_text((95, 146), linha2, fontsize=6)
+
+    page.insert_text((535, 145), dados_pdf["CargaHoraria"], fontsize=9)
+
+    page.insert_text((98, 154), dados_pdf["HoraAtividade"], fontsize=9)
+    page.insert_text((295, 154), dados_pdf["HAE-O"], fontsize=9)
+    page.insert_text((473, 154), dados_pdf["HAE-C"], fontsize=9)
+
+    y_start = 200
+    for i, val in enumerate(dados_pdf["GradeManha"]):
+        page.insert_text((95, y_start + i * 8), val, fontsize=6)
+    for i, val in enumerate(dados_pdf["GradeTarde"]):
+        page.insert_text((295, y_start + i * 8), val, fontsize=6)
+    for i, val in enumerate(dados_pdf["GradeNoite"]):
+        page.insert_text((473, y_start + i * 8), val, fontsize=6)
+
+    page.insert_text((55, 273), dados_pdf["ObsManha"], fontsize=8)
+    page.insert_text((245, 273), dados_pdf["ObsTarde"], fontsize=8)
+    page.insert_text((435, 273), dados_pdf["ObsNoite"], fontsize=8)
+
+    doc.save(saida_path)
+    doc.close()
+
+def processamento_central():
+    resultado = inicializar_programa()
+    if resultado is None:
+        return
+
+    ano, mes, df_parametros, dicionario_dados = resultado
+    print("Conteúdo extraído da planilha:")
+    for item in dicionario_dados:
+        print(item)
+
+    pdf_modelo = "_ model.pdf"
+    output_dir = "formularios_preenchidos"
+    os.makedirs(output_dir, exist_ok=True)
+    excel_path = f"Base-folhaPonto-{ano}-{mes}.xlsx"
+
+    for dados in dicionario_dados:
+        saida_pdf = os.path.join(output_dir, f"{dados['NomeProf'].replace(' ', '_')}_formulario.pdf")
+        preencher_pdf(dados, pdf_modelo, saida_pdf, excel_path)
+        print(f"Formulário preenchido salvo em: {saida_pdf}")
+
+def main():
+    print("=== Iniciando processamento da folha de ponto ===")
+    processamento_central()
+    print("=== Fim do processamento ===")
+
+if __name__ == "__main__":
+    main()
+Resultado:	
+Aten��o, estamos a processar a folha do m�s/ano: outubro/2025
+Conte�do extra�do da planilha:
+{'Sequencia': 1, 'Matricula': 1234567, 'NomeProf': 'Carlos Henrique Ver�ssimo Pereira', 'Nome da Aba': 'Prof1-1234567'}
+{'Sequencia': 2, 'Matricula': 1234568, 'NomeProf': 'Professor2', 'Nome da Aba': 'Prof2-1234568'}
+Formul�rio preenchido salvo em: formularios_preenchidos\Carlos_Henrique_Ver�ssimo_Pereira_formulario.pdf
+Formul�rio preenchido salvo em: formularios_preenchidos\Professor2_formulario.pdf
+
+
+Codigo(v0)
+import fitz  # PyMuPDF
+import os
+import pandas as pd
+from babel.dates import format_date
+from datetime import datetime
+
+# ===============================
+# Constantes globais de referência
+# ===============================
+ANO_REFERENCIA = 2025
+MES_REFERENCIA = 10
+#Linha onde inicia a lista de professores 
+INICIO_DADOS_PROFESSOR=10
+
+
+def inicializar_programa():
+    """
+    Executa os procedimentos iniciais:
+    - Usa as constantes ANO_REFERENCIA e MES_REFERENCIA
+    - Verifica existência do arquivo Excel
+    - Lê e valida a aba 'parametros'
+    Retorna (ANO_REFERENCIA, MES_REFERENCIA, df_parametros, dicionario_dados) se tudo estiver OK, caso contrário retorna None.
+    """
+    nome_arquivo_base = f"Base-folhaPonto-{ANO_REFERENCIA}-{MES_REFERENCIA}.xlsx"
+
+    if not os.path.exists(nome_arquivo_base):
+        print(f"Arquivo {nome_arquivo_base} não encontrado.")
+        return None
+
+    df_parametros = pd.read_excel(nome_arquivo_base, sheet_name='parametros', engine='openpyxl')
+    #............................print(df_parametros)
+    #............................print(df_parametros.shape)
+    # Obter valores base da planilha
+    ano_base = int(df_parametros.iloc[3, 1])
+    mes_base = int(df_parametros.iloc[4, 1])
+
+    if ano_base != ANO_REFERENCIA or mes_base != MES_REFERENCIA:
+        print(f"Erro: Ano/Mês base do arquivo ({ano_base}/{mes_base}) "
+              f"não corresponde ao esperado ({ANO_REFERENCIA}/{MES_REFERENCIA}).")
+        return None
+
+    # Mensagem de início
+    data = datetime(ANO_REFERENCIA, MES_REFERENCIA, 1)
+    nome_mes = format_date(data, "MMMM", locale="pt_BR")
+    print(f"Atenção, estamos a processar a folha do mês/ano: {nome_mes}/{ANO_REFERENCIA}")
+
+    # Extrair dados a partir da linha 12 (índice 11) das colunas A, B, C e D
+    df_dados = df_parametros.iloc[INICIO_DADOS_PROFESSOR:, [0, 1, 2, 3]]
+    df_dados.columns = ['Sequencia', 'Matricula', 'Nome', 'Nome da Pasta']
+    df_dados = df_dados.dropna(how='all')  # Remove linhas completamente vazias
+
+    # Criar dicionário com os dados
+    dicionario_dados = df_dados.to_dict(orient='records')
+
+    return ANO_REFERENCIA, MES_REFERENCIA, df_parametros, dicionario_dados
+
+
+def preencher_pdf(dados, modelo_path, saida_path):
+    """Preenche o modelo PDF com os dados de um dicionário."""
+    doc = fitz.open(modelo_path)
+    page = doc[0]
+
+    # Cabeçalho
+    page.insert_text((80, 135), f"{dados['Nome']}", fontsize=9)
+    page.insert_text((360, 135), f"{dados['Matricula']}", fontsize=8)
+    page.insert_text((460, 135), f"{dados['Regime']}", fontsize=8)
+    page.insert_text((545, 135), f"{dados['Categoria']}", fontsize=8)
+
+    # Disciplinas e carga horária
+    disciplinas_texto = ", ".join(dados["Disciplinas"].values())
+    page.insert_text((95, 142), disciplinas_texto, fontsize=5)
+    page.insert_text((545, 144), f"{dados['CHS']}", fontsize=10)
+
+    # Hora Atividade / HAE
+    page.insert_text((98, 154), f"{dados['HoraAtividade']}", fontsize=9)
+    page.insert_text((295, 154), f"{dados['HAE-O']}", fontsize=9)
+    page.insert_text((473, 154), f"{dados['HAE-C']}", fontsize=9)
+
+    # Grade - manhã / tarde / noite
+    for i, dia in enumerate(["SegundaManha", "TercaManha", "QuartaManha", "QuintaManha", "SextaManha", "SabadoManha"]):
+        y = 221 + i * 9
+        page.insert_text((95, y), dados["GradeManha"].get(dia, ""), fontsize=9)
+
+    for i, dia in enumerate(["SegundaTarde", "TercaTarde", "QuartaTarde", "QuintaTarde", "SextaTarde", "SabadoTarde"]):
+        y = 221 + i * 9
+        page.insert_text((294, y), dados["GradeTarde"].get(dia, ""), fontsize=9)
+
+    for i, dia in enumerate(["SegundaNoite", "TercaNoite", "QuartaNoite", "QuintaNoite", "SextaNoite", "SabadoNoite"]):
+        y = 221 + i * 9
+        page.insert_text((473, y), dados["GradeNoite"].get(dia, ""), fontsize=9)
+
+    # Observações
+    page.insert_text((55, 273), f"{dados['Observacao1_Grade']}", fontsize=8)
+    page.insert_text((245, 273), f"{dados['Observacao2_Grade']}", fontsize=8)
+    page.insert_text((435, 273), f"{dados['Observacao3_Grade']}", fontsize=8)
+
+    # Salvar resultado
+    doc.save(saida_path)
+    doc.close()
+
+
+def processamento_central():
+    """Executa o processamento principal do programa."""
+    resultado = inicializar_programa()
+    if resultado is None:
+        return
+
+    ano, mes, df_parametros, dicionario_dados = resultado
+
+    # Exibir o conteúdo do dicionário extraído da planilha
+    print("Conteúdo extraído da planilha:")
+    for item in dicionario_dados:
+        print(item)
+
+    pdf_modelo = "_ model.pdf"
+    output_dir = "formularios_preenchidos"
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Exemplo de dados para preenchimento
+    dados_exemplo = {
+        "Nome": "Carlos Henrique",
+        "Matricula": "123456",
+        "Regime": "CLT",
+        "Categoria": "Docente",
+        "Disciplinas": {
+            "1": "Estrutura de Dados",
+            "2": "Banco de Dados"
+        },
+        "CHS": "20",
+        "HoraAtividade": "5",
+        "HAE-O": "2",
+        "HAE-C": "1",
+        "GradeManha": {
+            "SegundaManha": "X      X       X       X      X       X",
+            "TercaManha":   "X      X       X       X      X       X",
+            "QuartaManha":  "X      X       X       X      X       X",
+            "QuintaManha":  "X      X       X       X      X       X",
+            "SextaManha":   "X      X       X       X      X       X",
+            "SabadoManha":  "X      X       X       X      X       X"
+        },
+        "GradeTarde": {
+            "SegundaTarde": "X      X      X      X     X      X",
+            "TercaTarde":   "X      X      X      X     X      X",
+            "QuartaTarde":  "X      X      X      X     X      X",
+            "QuintaTarde":  "X      X      X      X     X      X",
+            "SextaTarde":   "X      X      X      X     X      X",
+            "SabadoTarde":  "X      X      X      X     X      X"
+        },
+        "GradeNoite": {
+            "SegundaNoite": "X      X       X       X",
+            "TercaNoite":   "X      X       X       X",
+            "QuartaNoite":  "X      X       X       X",
+            "QuintaNoite":  "X      X       X       X",
+            "SextaNoite":   "X      X       X       X",
+            "SabadoNoite":  "X      X       X       X"
+        },
+        "Observacao1_Grade": "esta é a observacao #1 da grade",
+        "Observacao2_Grade": "esta é a observacao #2 da grade",
+        "Observacao3_Grade": "esta é a observacao #3 da gradex",
+    }
+
+    saida_pdf = os.path.join(output_dir, f"{dados_exemplo['Nome'].replace(' ', '_')}_formulario.pdf")
+    preencher_pdf(dados_exemplo, pdf_modelo, saida_pdf)
+    print(f"Formulário preenchido salvo em: {saida_pdf}")
+
+
+def main():
+    """Procedimento principal."""
+    print("=== Iniciando processamento da folha de ponto ===")
+    processamento_central()
+    print("=== Fim do processamento ===")
+
+
+# Execução direta
+if __name__ == "__main__":
+    main() 
+ 
+ === Iniciando processamento da folha de ponto ===
+Aten��o, estamos a processar a folha do m�s/ano: outubro/2025
+Conte�do extra�do da planilha:
+{'Sequencia': 1, 'Matricula': 1234567, 'Nome': 'Carlos Henrique Ver�ssimo Pereira', 'Nome da Pasta': 'Prof1-1234567'}
+{'Sequencia': 2, 'Matricula': 1234568, 'Nome': 'Professor2', 'Nome da Pasta': 'Prof2-1234568'}
+Formul�rio preenchido salvo em: formularios_preenchidos\Carlos_Henrique_formulario.pdf
+=== Fim do processamento ===
+
+por que o codigo BK4 grava um arquivo para cada professor (crreto e o arquivo V0 grava somente 1 arquivo?
+
+================================================================
+Resposta
+================================================================
+Excelente pergunta 👍
+
+O comportamento diferente entre o **código BKP4** e o **código v0** se deve **à forma como o processamento principal (`processamento_central`) foi escrito** em cada versão.
+
+Vamos comparar ponto a ponto para deixar claro:
+
+---
+
+### 🧩 **1. Código BKP4 — Gera 1 PDF por professor**
+
+Trecho-chave:
+
+```python
+for dados in dicionario_dados:
+    saida_pdf = os.path.join(output_dir, f"{dados['NomeProf'].replace(' ', '_')}_formulario.pdf")
+    preencher_pdf(dados, pdf_modelo, saida_pdf, excel_path)
+    print(f"Formulário preenchido salvo em: {saida_pdf}")
+```
+
+👉 Aqui o programa:
+
+* Lê a planilha e cria `dicionario_dados`, que contém **vários professores**.
+* Depois **percorre esse dicionário linha a linha** (`for dados in dicionario_dados:`).
+* Para **cada professor**, ele:
+
+  * Cria um nome de arquivo PDF específico (com o nome do professor).
+  * Chama `preencher_pdf(...)`.
+  * Gera e salva o arquivo.
+
+✅ **Resultado:** um PDF para cada professor listado na planilha.
+
+---
+
+### ⚙️ **2. Código v0 — Gera apenas 1 PDF**
+
+Trecho correspondente:
+
+```python
+# Exemplo de dados para preenchimento
+dados_exemplo = {
+    "Nome": "Carlos Henrique",
+    ...
+}
+
+saida_pdf = os.path.join(output_dir, f"{dados_exemplo['Nome'].replace(' ', '_')}_formulario.pdf")
+preencher_pdf(dados_exemplo, pdf_modelo, saida_pdf)
+print(f"Formulário preenchido salvo em: {saida_pdf}")
+```
+
+👉 Aqui, em vez de usar o `dicionario_dados` extraído da planilha,
+o código define **manualmente apenas um conjunto de dados (`dados_exemplo`)**.
+
+* Ele **não percorre** `dicionario_dados`.
+* Apenas gera **um único PDF** com esses dados fixos.
+
+✅ **Resultado:** um único arquivo (por exemplo, `Carlos_Henrique_formulario.pdf`).
+
+---
+
+### 🧠 **Resumo da diferença**
+
+| Aspecto                  | BKP4                                    | v0                                |
+| ------------------------ | --------------------------------------- | --------------------------------- |
+| Fonte dos dados          | Planilha Excel (`dicionario_dados`)     | Dicionário fixo (`dados_exemplo`) |
+| Loop sobre professores   | ✅ Sim (`for dados in dicionario_dados`) | ❌ Não                             |
+| Arquivo gerado           | 1 por professor                         | 1 fixo                            |
+| Função `preencher_pdf()` | chamada dentro do loop                  | chamada apenas uma vez            |
+
+---
+
+### ✅ **Como corrigir o v0 para gerar vários PDFs (como o BKP4)**
+
+Basta substituir este trecho do `processamento_central()`:
+
+```python
+# Exemplo de dados para preenchimento
+dados_exemplo = {
+    ...
+}
+
+saida_pdf = os.path.join(output_dir, f"{dados_exemplo['Nome'].replace(' ', '_')}_formulario.pdf")
+preencher_pdf(dados_exemplo, pdf_modelo, saida_pdf)
+print(f"Formulário preenchido salvo em: {saida_pdf}")
+```
+
+por isto:
+
+```python
+for dados in dicionario_dados:
+    saida_pdf = os.path.join(output_dir, f"{dados['Nome'].replace(' ', '_')}_formulario.pdf")
+    preencher_pdf(dados, pdf_modelo, saida_pdf)
+    print(f"Formulário preenchido salvo em: {saida_pdf}")
+```
+
+---
+
+Assim o **código v0** também percorrerá todos os professores da planilha, como o **BKP4**, e criará **um PDF para cada professor**.
