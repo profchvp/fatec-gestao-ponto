@@ -1,11 +1,11 @@
-BACKUP gerado depois que estabilizou a impressão da GRADE
-
+#BKP Ponto chave: foi feito o ajuste fino para imprimir o calendario (dias da semana)
 import fitz  # PyMuPDF
 import os
 import pandas as pd
 from babel.dates import format_date
 from datetime import datetime
 from openpyxl import load_workbook
+import calendar
 
 # ===============================
 # Parâmetros configuráveis
@@ -33,6 +33,12 @@ extra_col_start_manha = 2
 extra_col_start_tarde = 6
 extra_col_start_noite = 3
 
+
+# Configuração do espaçamento (Linhas FOLHA DE FREQUENCIA)
+freq_line_height_default = 10      # espaçamento padrão
+freq_line_height_extra = 11        # espaçamento extra (muito pouco)
+extra_freq_start = 3               # aplicar extra a partir do índice 3 (dia 04
+
 # Posição vertical para observações (abaixo das grades)
 obs_y_offset = 8  # distância abaixo da última linha da grade
 
@@ -40,8 +46,19 @@ obs_y_offset = 8  # distância abaixo da última linha da grade
 # Constantes globais
 # ===============================
 ANO_REFERENCIA = 2025
-MES_REFERENCIA = 10
+MES_REFERENCIA = 9
 INICIO_DADOS_PROFESSOR = 10  # Linha onde inicia a lista de professores
+
+# Dicionário para tradução dos dias da semana
+dias_semana_pt = {
+    'Monday':    '  S',
+    'Tuesday':   '  T',
+    'Wednesday': '  Q',
+    'Thursday':  '  Q',
+    'Friday':    '  S',
+    'Saturday':  '  S',
+    'Sunday':    '  D'
+}
 
 def inicializar_programa():
     """
@@ -106,6 +123,28 @@ def extrair_grades(excel_path, aba):
     grade_noite = extrair_matriz('N', 'Q', 19, 24)
 
     return grade_manha, grade_tarde, grade_noite
+
+def montar_folha_frequencia(ano, mes):
+    """
+    Monta a folha de frequência com dias do mês e dia da semana em português.
+    """
+    num_dias = calendar.monthrange(ano, mes)[1]
+    folha = []
+    for dia in range(1, num_dias + 1):
+        data = datetime(ano, mes, dia)
+        dia_semana_en = data.strftime('%A')
+        dia_semana_pt = dias_semana_pt.get(dia_semana_en, dia_semana_en)
+        folha.append({
+            'Dia do Mês': f"{dia:02d}",
+            'Dia da Semana': dia_semana_pt,
+            'Assinatura-Manhã': '',
+            'Frequência-Manhã': [''] * 6,
+            'Assinatura-Tarde': '',
+            'Frequência-Tarde': [''] * 6,
+            'Assinatura-Noite': '',
+            'Frequência-Noite': [''] * 4
+        })
+    return folha
 
 def preencher_pdf(dados, modelo_path, saida_path, excel_path):
     nome_abas = dados.get("Nome da Aba")
@@ -215,6 +254,7 @@ def preencher_pdf(dados, modelo_path, saida_path, excel_path):
         x_pos = x_base_manha
         for j, val in enumerate(grade_manha_final[i]):
             page.insert_text((x_pos, y_pos), val, fontsize=fontsize)
+            #Aqui é feito um "ajuste fino" no espacamento  entre COLUNAS
             if j + 1 == extra_col_start_manha:
                 x_pos += col_width_extra_manha
             else:
@@ -244,6 +284,20 @@ def preencher_pdf(dados, modelo_path, saida_path, excel_path):
     page.insert_text((245, obs_y), dados_pdf["ObsTarde"], fontsize=8)
     page.insert_text((435, obs_y), dados_pdf["ObsNoite"], fontsize=8)
 
+    # Inserir folha de frequência abaixo das observações
+    folha_freq = montar_folha_frequencia(ANO_REFERENCIA, MES_REFERENCIA)
+    freq_y_start = obs_y + 50 #Neste ponto, posicona o inicio
+    
+    for idx, linha in enumerate(folha_freq):
+        if idx >= extra_freq_start:
+            y_freq = freq_y_start + (idx * freq_line_height_default) + ((idx - extra_freq_start + 1) * (freq_line_height_extra - freq_line_height_default))
+        else:
+            y_freq = freq_y_start + idx * freq_line_height_default
+
+        texto = f"{linha['Dia do Mês']} {linha['Dia da Semana']}"
+        page.insert_text((35, y_freq), texto, fontsize=9)
+
+
     doc.save(saida_path)
     doc.close()
 
@@ -257,7 +311,7 @@ def processamento_central():
     for item in dicionario_dados:
         print(item)
 
-    pdf_modelo = "_ model.pdf"
+    pdf_modelo = "model2.pdf"
     output_dir = "formularios_preenchidos"
     os.makedirs(output_dir, exist_ok=True)
     excel_path = f"Base-folhaPonto-{ano}-{mes}.xlsx"

@@ -1,3 +1,35 @@
+Agora utilizando o mesmo codigo (está anexo) faça a marcação do termo "AULA REMOTA" , também no 
+quadro de "Folha de Frequencia"  . Com base na ABA do  professor, gerar a "lista  de disciplinas hibridas", com "dia da semana" e "periodo" (manha/tarde/noite).
+     "Disciplinas Hibridas do Professor" : das celulas A30 ate A35
+	"Curso" : das celulas B30 ate B35
+	"Dia da semana" : das celulas C30 ate C35
+	"Periodo" : das celulas D30 ate D35
+	"Aula Hibrida(sim/nao)" : das celulas E30 ate E35
+	
+  Reformular o programa para obter esta lista "Disciplinas Híbridas do Professor", quando processar "inicializar_programa()".
+  Guardar estas informações(Somente disciplinas hibridas).
+           ober a linha de "lista  de disciplinas hibridas", os a linha correspondente ao "dia da semana" e "periodo". Ao localizar,
+		   verifique se "Aula Hibrida (Sim/não)" for "sim" (então é uma disciplina de aula hibrida) Caso contrário...sair (Nao faz nada)
+		   Para "sim" proceder:
+		            Acessar a aba "CalendarioRemotas" da linhas 7 a 79 (counas "A", "B" "C" e "E")
+
+Seguindo em frente: 
+Para cada dia da semana, que o professor tenha aula (obtido da "grade horária") proceder:
+    Para cada periodo da grade : manha/tarde/noite deverá ser feita a verificação se existe aula hibrida para este dia/periodo.
+	   Isto é feito da seguinte forma: 
+	     Se exisiter, deverá ser verificada a aba de "CalendarioRemotas" no qual contem os dias de aulas remotas
+	     O calendario está disposto  das linhas 9 a 79 com as seguintes colunas
+		 "Curso-online" Coluna "A"
+		 "Disicplina-online" Coluna "B"
+		 "Inicio-online" Coluna "C"
+		 "Fim-online" Coluna "D"
+	    
+		  
+
+
+========================
+Para esta alteração, utilizar o codigo que seuge anexo (Não retirar nenhum comentário do codigo- Mantenha o codigo à íntegra.
+Utilizar o codigo abaixo:
 # Código final corrigido e completo para gerar a folha de frequência contínua com quebra automática de página
 # Inclui cabeçalho, lógica funcional e indentação adequada
 
@@ -188,7 +220,6 @@ def desenhar_retangulo_continuo(current_page, x_inicio, y, lista_freq, largura_u
         x2 = x_inicio + (ultimo + 1) * largura_unitaria
         rect = fitz.Rect(x1, y - altura/2, x2, y + altura/2)
         current_page.draw_rect(rect, color=(0.8, 0.8, 0.8), fill=(0.8, 0.8, 0.8))
-
 def destacar_domingo(page, y_freq):
     # Coordenadas para a tarja (ajuste conforme layout)
     x_inicio = 72
@@ -199,124 +230,8 @@ def destacar_domingo(page, y_freq):
     # Inserir texto centralizado
     texto = "D O M I N G O"
     largura_tarja = x_fim - x_inicio
-    x_texto = x_inicio + largura_tarja / 2 - (len(texto) * 3)
+    x_texto = x_inicio + largura_tarja / 2 - (len(texto) * 3)  # Ajuste simples para centralização
     page.insert_text((x_texto, y_freq - 2), texto, fontsize=9, fontname="helv")
-
-# === INÍCIO FERIADOS ===
-# === INÍCIO FERIADOS ===
-def carregar_feriados(excel_path, ano_base, mes_base):
-    """
-    Versão robusta para ler a aba 'feriados' mesmo quando os cabeçalhos não coincidem.
-    - Lê sem assumir cabeçalho.
-    - Varre a partir da linha 11 (índice 10 no pandas, mas aqui usamos header=None e iteramos).
-    - Aceita 'Dia do Mês' como número inteiro ou célula datetime.
-    - Pega a descrição na segunda coluna (col B) mesmo se o cabeçalho estiver ausente ou diferente.
-    Retorna dicionário {dia_int: descricao}.
-    """
-    try:
-        # lê a planilha inteira da aba 'feriados' sem cabeçalho
-        wb = load_workbook(excel_path, data_only=True)
-        if 'feriados' not in wb.sheetnames:
-            print("Aba 'feriados' não encontrada no arquivo.")
-            return {}
-        sheet = wb['feriados']
-
-        feriados_mes = {}
-        # iterar a partir da linha 11 (conforme você indicou: A10/B10 são rótulos, dados começam na 11)
-        start_row = 11
-        # determina número de dias do mês para validar
-        num_dias = calendar.monthrange(ano_base, mes_base)[1]
-
-        row = start_row
-        while True:
-            cell_a = sheet[f"A{row}"].value
-            cell_b = sheet[f"B{row}"].value
-
-            # se ambas células vazias e chegamos a algumas linhas vazias seguidas, encerrar
-            if (cell_a is None or (isinstance(cell_a, str) and str(cell_a).strip() == "")) and \
-               (cell_b is None or (isinstance(cell_b, str) and str(cell_b).strip() == "")):
-                # checar próximo; se várias linhas vazias, assume fim
-                # vamos encerrar quando encontrar 5 linhas vazias consecutivas para segurança
-                # (mas, para simplicidade, se linha atual vazia e próxima também vazia, encerramos)
-                next_a = sheet[f"A{row+1}"].value
-                next_b = sheet[f"B{row+1}"].value
-                if (next_a is None or (isinstance(next_a, str) and str(next_a).strip() == "")) and \
-                   (next_b is None or (isinstance(next_b, str) and str(next_b).strip() == "")):
-                    break
-                else:
-                    row += 1
-                    continue
-
-            # tentar extrair dia inteiro da coluna A
-            dia_int = None
-            if cell_a is None:
-                # nada na coluna A, pular linha
-                row += 1
-                continue
-            try:
-                # se for número (int/float)
-                if isinstance(cell_a, (int, float)):
-                    dia_int = int(cell_a)
-                # se for datetime
-                elif hasattr(cell_a, 'day'):
-                    dia_int = int(cell_a.day)
-                else:
-                    # tentar converter string que contenha número (ex: "12" ou " 12 ")
-                    s = str(cell_a).strip()
-                    # se string no formato dd/mm/aaaa -> extrair dia
-                    if '/' in s or '-' in s:
-                        try:
-                            dt = pd.to_datetime(s, dayfirst=True, errors='coerce')
-                            if not pd.isna(dt):
-                                dia_int = int(dt.day)
-                        except Exception:
-                            dia_int = None
-                    else:
-                        # extrair dígitos da string
-                        nums = ''.join(ch for ch in s if ch.isdigit())
-                        if nums != "":
-                            dia_int = int(nums)
-            except Exception:
-                dia_int = None
-
-            # obter descrição (coluna B)
-            descricao = ""
-            if cell_b is not None:
-                descricao = str(cell_b).strip()
-
-            # validar e armazenar
-            if dia_int is not None and 1 <= dia_int <= num_dias:
-                if descricao == "":
-                    # se descrição vazia, ainda armazena com valor genérico
-                    descricao = "FERIADO"
-                feriados_mes[dia_int] = descricao
-            else:
-                # se encontrarmos algo na coluna A que não foi interpretado como dia válido,
-                # vamos ignorar e continuar — pode ser uma linha de observação
-                pass
-
-            row += 1
-
-        return feriados_mes
-
-    except Exception as e:
-        print(f"Erro ao carregar aba 'feriados' (robusto): {e}")
-        return {}
-# === FIM FERIADOS ===
-
-
-def destacar_feriado(page, y_freq, descricao):
-    """Destaca um feriado no PDF, semelhante à marcação de domingo"""
-    x_inicio = 72
-    x_fim = 565
-    altura = ALTURA_RETANGULO_DOMINGO * 2
-    rect = fitz.Rect(x_inicio, y_freq - altura/2, x_fim, y_freq + altura/2)
-    page.draw_rect(rect, color=(0.8, 0.8, 0.8), fill=(0.8, 0.8, 0.8))
-    texto = descricao.upper()
-    largura_tarja = x_fim - x_inicio
-    x_texto = x_inicio + largura_tarja / 2 - (len(texto) * 2.5)
-    page.insert_text((x_texto, y_freq - 2), texto, fontsize=8, fontname="helv")
-# === FIM FERIADOS ===
 
 def preencher_pdf(dados, modelo_path, saida_path, excel_path):
     nome_abas = dados.get("Nome da Aba")
@@ -388,10 +303,6 @@ def preencher_pdf(dados, modelo_path, saida_path, excel_path):
 
         except Exception as e:
             print(f"Erro ao ler aba '{aba}': {e}")
-
-    # Carregar feriados (apenas uma vez por folha) - === INÍCIO FERIADOS ===
-    feriados_do_mes = carregar_feriados(excel_path, ANO_REFERENCIA, MES_REFERENCIA)
-    # === FIM FERIADOS ===
 
     doc = fitz.open(modelo_path)
     page = doc[0]
@@ -482,40 +393,16 @@ def preencher_pdf(dados, modelo_path, saida_path, excel_path):
 
     for idx, linha in enumerate(folha_freq):
         
-        # Lógica para controle fino do espaçamento vertical entre linhas (recalcula y a cada iteração)
-        if idx >= extra_freq_start:
-            y_freq = freq_y_start + (idx * freq_line_height_default) + \
-                    ((idx - extra_freq_start + 1) * (freq_line_height_extra - freq_line_height_default))
-        else:
-            y_freq = freq_y_start + idx * freq_line_height_default
+        if linha['Dia da Semana'] == 'Dom':
+                destacar_domingo(current_page, y_freq)
+                
 
-        # Se necessário criar nova página (quebra)
+        y_freq = freq_y_start + (idx * freq_line_height_default)
         if y_freq > current_page.rect.height - 50:
             current_page = doc.new_page()
             freq_y_start = 50
-            if idx >= extra_freq_start:
-                y_freq = freq_y_start + (idx * freq_line_height_default) + \
-                        ((idx - extra_freq_start + 1) * (freq_line_height_extra - freq_line_height_default))
-            else:
-                y_freq = freq_y_start + idx * freq_line_height_default
+            y_freq = freq_y_start
 
-        # Domingo
-        if linha['Dia da Semana'] == 'Dom':
-            destacar_domingo(current_page, y_freq)
-
-        # === INÍCIO FERIADOS ===
-        # Verifica se o dia (inteiro) está entre os feriados carregados
-        try:
-            dia_inteiro = int(linha['Dia do Mês'])
-            if dia_inteiro in feriados_do_mes:
-                descricao_feriado = feriados_do_mes.get(dia_inteiro, "")
-                if descricao_feriado:
-                    destacar_feriado(current_page, y_freq, descricao_feriado)
-        except Exception:
-            pass
-        # === FIM FERIADOS ===
-
-        # Desenhar retângulos de frequência
         desenhar_retangulo_continuo(current_page, 114, y_freq, linha['Frequência-Manhã'])
         desenhar_retangulo_continuo(current_page, 298, y_freq, linha['Frequência-Tarde'])
         desenhar_retangulo_continuo(current_page, 483, y_freq, linha['Frequência-Noite'], largura_unitaria=LARGURA_RETANGULO_NOITE, altura=ALTURA_RETANGULO)

@@ -1,0 +1,6 @@
+Faça a nalise deste dois codigos:
+Temos dois codigos a serem analisados:  "geradorFolhaPonto.py" que chamaremos "versao(0)" e o seu correspondendente, em uma versão versão anterior, "BKP6_geradorFolhaPonto.py" vamos chamar de versao (-1).
+================================================
+Preciso que seja atualizado, na "versao (0)" uma implementação que foi colocada na "versao (-1). como segue:
+devem ser implementados os procedimentos:
+

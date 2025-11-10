@@ -1,4 +1,5 @@
-BACKUP gerado depois que estabilizou a impressão da GRADE
+# Refatorar o código anexado para desenhar um único retângulo contínuo por turno (manhã, tarde, noite)
+# quando houver marcadores cinza consecutivos. Mantendo comentários originais e estrutura.
 
 import fitz  # PyMuPDF
 import os
@@ -6,50 +7,53 @@ import pandas as pd
 from babel.dates import format_date
 from datetime import datetime
 from openpyxl import load_workbook
+import calendar
 
 # ===============================
 # Parâmetros configuráveis
 # ===============================
-# Posições iniciais para cada turno
 x_base_manha = 95
 x_base_tarde = 295
 x_base_noite = 473
 
-# Posição vertical inicial e espaçamento
 y_start = 220
-line_height_default = 8       # espaçamento padrão entre linhas
-line_height_extra = 10        # espaçamento extra a partir da linha definida
-extra_line_start = 4          # aplicar espaçamento extra a partir da 4ª linha (inclusive)
+line_height_default = 8
+line_height_extra = 10
+extra_line_start = 4
 fontsize = 6
 
-# Larguras padrão e extras para colunas
 col_width_default = 20
 col_width_extra_manha = 30
 col_width_extra_tarde = 25
 col_width_extra_noite = 25
 
-# Coluna a partir da qual aplicar largura extra (inclusive)
 extra_col_start_manha = 2
 extra_col_start_tarde = 6
 extra_col_start_noite = 3
 
-# Posição vertical para observações (abaixo das grades)
-obs_y_offset = 8  # distância abaixo da última linha da grade
+freq_line_height_default = 10
+freq_line_height_extra = 11
+extra_freq_start = 3
 
-# ===============================
-# Constantes globais
-# ===============================
+obs_y_offset = 8
+
+LARGURA_RETANGULO = 14  # Largura configurável dos retângulos
+LARGURA_RETANGULO_NOITE = 21
 ANO_REFERENCIA = 2025
-MES_REFERENCIA = 10
-INICIO_DADOS_PROFESSOR = 10  # Linha onde inicia a lista de professores
+MES_REFERENCIA = 9
+INICIO_DADOS_PROFESSOR = 10
+
+dias_semana_pt = {
+    'Monday':    'segunda',
+    'Tuesday':   'terça',
+    'Wednesday': 'quarta',
+    'Thursday':  'quinta',
+    'Friday':    'sexta',
+    'Saturday':  'sábado',
+    'Sunday':    'domingo'
+}
 
 def inicializar_programa():
-    """
-    Inicializa o programa:
-    - Verifica arquivo Excel
-    - Valida ano/mês
-    - Extrai lista de professores e abas
-    """
     nome_arquivo_base = f"Base-folhaPonto-{ANO_REFERENCIA}-{MES_REFERENCIA}.xlsx"
     if not os.path.exists(nome_arquivo_base):
         print(f"Arquivo {nome_arquivo_base} não encontrado.")
@@ -75,22 +79,16 @@ def inicializar_programa():
     return ANO_REFERENCIA, MES_REFERENCIA, df_parametros, dicionario_dados
 
 def tratar_valor(val):
-    """Converte valor para string, substituindo NaN, 'nan' ou vazio por '......'."""
     if pd.isna(val) or str(val).strip().lower() == 'nan' or str(val).strip() == '':
         return '......'
     return str(val).strip()
 
 def extrair_grades(excel_path, aba):
-    """
-    Extrai as três matrizes (manhã, tarde, noite) da aba do professor.
-    Cada matriz é 6x6, sem títulos nem labels, apenas valores.
-    """
     wb = load_workbook(excel_path, data_only=True)
     if aba not in wb.sheetnames:
         raise ValueError(f"Aba '{aba}' não encontrada no arquivo Excel.")
     sheet = wb[aba]
 
-    # Função auxiliar para extrair matriz 6x6
     def extrair_matriz(inicio_col, fim_col, inicio_row, fim_row):
         matriz = []
         for r in range(inicio_row, fim_row + 1):
@@ -106,6 +104,54 @@ def extrair_grades(excel_path, aba):
     grade_noite = extrair_matriz('N', 'Q', 19, 24)
 
     return grade_manha, grade_tarde, grade_noite
+
+def mapear_grade_para_dias(grade_manha, grade_tarde, grade_noite):
+    dias = ['segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado']
+    mapa = {dia: {'manha': [False]*6, 'tarde': [False]*6, 'noite': [False]*4} for dia in dias}
+
+    for i, dia in enumerate(dias):
+        for j in range(6):
+            if grade_manha[i][j].lower() == 'x':
+                mapa[dia]['manha'][j] = True
+        for j in range(6):
+            if grade_tarde[i][j].lower() == 'x':
+                mapa[dia]['tarde'][j] = True
+        for j in range(4):
+            if grade_noite[i][j].lower() == 'x':
+                mapa[dia]['noite'][j] = True
+    return mapa
+
+def montar_folha_frequencia(ano, mes, mapa_grade):
+    num_dias = calendar.monthrange(ano, mes)[1]
+    folha = []
+    for dia in range(1, num_dias + 1):
+        data = datetime(ano, mes, dia)
+        dia_semana_en = data.strftime('%A')
+        dia_semana_pt_nome = dias_semana_pt.get(dia_semana_en, dia_semana_en)
+        freq_manha = [''] * 6
+        freq_tarde = [''] * 6
+        freq_noite = [''] * 4
+        if dia_semana_pt_nome in mapa_grade:
+            for i in range(6):
+                if mapa_grade[dia_semana_pt_nome]['manha'][i]:
+                    freq_manha[i] = 'cinza'
+            for i in range(6):
+                if mapa_grade[dia_semana_pt_nome]['tarde'][i]:
+                    freq_tarde[i] = 'cinza'
+            for i in range(4):
+                if mapa_grade[dia_semana_pt_nome]['noite'][i]:
+                    freq_noite[i] = 'cinza'
+        folha.append({
+            'Dia do Mês': f"{dia:02d}",
+            'Dia da Semana': dia_semana_pt_nome,
+            'Assinatura-Manhã': '',
+            'Frequência-Manhã': freq_manha,
+            'Assinatura-Tarde': '',
+            'Frequência-Tarde': freq_tarde,
+            'Assinatura-Noite': '',
+            'Frequência-Noite': freq_noite
+        })
+    return folha
 
 def preencher_pdf(dados, modelo_path, saida_path, excel_path):
     nome_abas = dados.get("Nome da Aba")
@@ -166,13 +212,11 @@ def preencher_pdf(dados, modelo_path, saida_path, excel_path):
                     val = tratar_valor(row.get(col, ""))
                     dados_pdf["Disciplinas"].append(val)
 
-            # Extrair as grades diretamente da aba
             g_manha, g_tarde, g_noite = extrair_grades(excel_path, aba)
             grade_manha_final = g_manha
             grade_tarde_final = g_tarde
             grade_noite_final = g_noite
 
-            # Extrair observações
             dados_pdf["ObsManha"] = tratar_valor(row.get("Obs-Manha", ""))
             dados_pdf["ObsTarde"] = tratar_valor(row.get("Obs-Tarde", ""))
             dados_pdf["ObsNoite"] = tratar_valor(row.get("Obs-Noite", ""))
@@ -180,7 +224,6 @@ def preencher_pdf(dados, modelo_path, saida_path, excel_path):
         except Exception as e:
             print(f"Erro ao ler aba '{aba}': {e}")
 
-    # Inserir no PDF
     doc = fitz.open(modelo_path)
     page = doc[0]
 
@@ -203,15 +246,13 @@ def preencher_pdf(dados, modelo_path, saida_path, excel_path):
     page.insert_text((295, 154), dados_pdf["HAE-O"], fontsize=9)
     page.insert_text((473, 154), dados_pdf["HAE-C"], fontsize=9)
 
-    # Inserir as três grades lado a lado (sem títulos nem labels)
-    for i in range(6):  # 6 linhas
-        # Calcular espaçamento vertical com lógica extra
+    # Inserir as três grades lado a lado
+    for i in range(6):
         if i + 1 > extra_line_start:
             y_pos = y_start + (i * line_height_default) + ((i + 1 - extra_line_start) * (line_height_extra - line_height_default))
         else:
             y_pos = y_start + i * line_height_default
 
-        # Manhã
         x_pos = x_base_manha
         for j, val in enumerate(grade_manha_final[i]):
             page.insert_text((x_pos, y_pos), val, fontsize=fontsize)
@@ -220,7 +261,6 @@ def preencher_pdf(dados, modelo_path, saida_path, excel_path):
             else:
                 x_pos += col_width_default
 
-        # Tarde
         x_pos = x_base_tarde
         for j, val in enumerate(grade_tarde_final[i]):
             page.insert_text((x_pos, y_pos), val, fontsize=fontsize)
@@ -229,7 +269,6 @@ def preencher_pdf(dados, modelo_path, saida_path, excel_path):
             else:
                 x_pos += col_width_default
 
-        # Noite
         x_pos = x_base_noite
         for j, val in enumerate(grade_noite_final[i]):
             page.insert_text((x_pos, y_pos), val, fontsize=fontsize)
@@ -238,11 +277,38 @@ def preencher_pdf(dados, modelo_path, saida_path, excel_path):
             else:
                 x_pos += col_width_default
 
-    # Inserir observações abaixo das grades
     obs_y = y_pos + obs_y_offset
     page.insert_text((55, obs_y), dados_pdf["ObsManha"], fontsize=8)
     page.insert_text((245, obs_y), dados_pdf["ObsTarde"], fontsize=8)
     page.insert_text((435, obs_y), dados_pdf["ObsNoite"], fontsize=8)
+
+    # Inserir folha de frequência
+    mapa_grade = mapear_grade_para_dias(grade_manha_final, grade_tarde_final, grade_noite_final)
+    folha_freq = montar_folha_frequencia(ANO_REFERENCIA, MES_REFERENCIA, mapa_grade)
+    freq_y_start = obs_y +47.5
+
+    for idx, linha in enumerate(folha_freq):
+        #y_freq = freq_y_start + idx * freq_line_height_default
+        #texto = f"{linha['Dia do Mês']} {linha['Dia da Semana']}"
+        #page.insert_text((35, y_freq), texto, fontsize=9)
+
+        # Desenhar retângulos contínuos por turno
+        y_freq = freq_y_start + idx * freq_line_height_default
+        def desenhar_retangulo_continuo(x_inicio, y, lista_freq, largura_unitaria=LARGURA_RETANGULO, altura=8):
+            # Encontrar índices marcados
+            indices = [i for i, val in enumerate(lista_freq) if val == 'cinza']
+            if indices:
+                # Desenhar um único retângulo do primeiro ao último índice
+                primeiro = min(indices)
+                ultimo = max(indices)
+                x1 = x_inicio + primeiro * largura_unitaria
+                x2 = x_inicio + (ultimo + 1) * largura_unitaria
+                rect = fitz.Rect(x1, y - altura/2, x2, y + altura/2)
+                page.draw_rect(rect, color=(0.8, 0.8, 0.8), fill=(0.8, 0.8, 0.8))
+
+        desenhar_retangulo_continuo(114, y_freq, linha['Frequência-Manhã'])
+        desenhar_retangulo_continuo(298, y_freq, linha['Frequência-Tarde'])
+        desenhar_retangulo_continuo(483, y_freq, linha['Frequência-Noite'], largura_unitaria=LARGURA_RETANGULO_NOITE, altura=8)
 
     doc.save(saida_path)
     doc.close()
@@ -257,7 +323,7 @@ def processamento_central():
     for item in dicionario_dados:
         print(item)
 
-    pdf_modelo = "_ model.pdf"
+    pdf_modelo = "_model.pdf"
     output_dir = "formularios_preenchidos"
     os.makedirs(output_dir, exist_ok=True)
     excel_path = f"Base-folhaPonto-{ano}-{mes}.xlsx"

@@ -1,5 +1,5 @@
-# Código final corrigido e completo para gerar a folha de frequência contínua com quebra automática de página
-# Inclui cabeçalho, lógica funcional e indentação adequada
+Código OK - Implementou carregar_feriados
+Próximo passo: implementar marcação "REMOTA"
 
 import fitz  # PyMuPDF
 import os

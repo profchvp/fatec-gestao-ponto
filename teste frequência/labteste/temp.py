@@ -1,5 +1,5 @@
-# Código final corrigido e completo para gerar a folha de frequência contínua com quebra automática de página
-# Inclui cabeçalho, lógica funcional e indentação adequada
+# Refatorar o código anexado para desenhar um único retângulo contínuo por turno (manhã, tarde, noite)
+# quando houver marcadores cinza consecutivos. Mantendo comentários originais e estrutura.
 
 import fitz  # PyMuPDF
 import os
@@ -12,7 +12,6 @@ import calendar
 # ===============================
 # Parâmetros configuráveis
 # ===============================
-fontname="helv-bolditalic"
 x_base_manha = 95
 x_base_tarde = 295
 x_base_noite = 473
@@ -33,27 +32,34 @@ extra_col_start_tarde = 6
 extra_col_start_noite = 3
 
 freq_line_height_default = 11  # Espaçamento vertical ajustado para montagem contínua
-freq_line_height_extra = 11        # espaçamento extra (muito pouco)
+#freq_line_height_extra = 2
+#extra_freq_start = 3
+
 obs_y_offset = 8
-extra_freq_start = 3               # aplicar extra a partir do índice 3 (dia 04
 
-LARGURA_RETANGULO = 21  # Largura configurável dos retângulos
+LARGURA_RETANGULO = 14  # Largura configurável dos retângulos
+# Largura para colunas da noite (se diferente)
 LARGURA_RETANGULO_NOITE = 20.5
-ALTURA_RETANGULO = 9
-ALTURA_RETANGULO_DOMINGO = 9
-
 ANO_REFERENCIA = 2025
-MES_REFERENCIA = 10
+MES_REFERENCIA = 9
 INICIO_DADOS_PROFESSOR = 10
 
+# Altura do retângulo de preenchimento
+ALTURA_RETANGULO = 9
+
+# Largura de cada coluna de aula
+LARGURA_RETANGULO = 23   # ajuste se necessário
+
+
+
 dias_semana_pt = {
-    'Monday':    'Seg',
-    'Tuesday':   'Ter',
-    'Wednesday': 'Qua',
-    'Thursday':  'Qui',
-    'Friday':    'Sex',
-    'Saturday':  'Sab',
-    'Sunday':    'Dom'
+    'Monday':    'segunda',
+    'Tuesday':   'terça',
+    'Wednesday': 'quarta',
+    'Thursday':  'quinta',
+    'Friday':    'sexta',
+    'Saturday':  'sábado',
+    'Sunday':    'domingo'
 }
 
 def inicializar_programa():
@@ -107,32 +113,9 @@ def extrair_grades(excel_path, aba):
     grade_noite = extrair_matriz('N', 'Q', 19, 24)
 
     return grade_manha, grade_tarde, grade_noite
-#xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-def montar_folha_frequencia1(ano, mes):
-    """
-    Monta a folha de frequência com dias do mês e dia da semana em português.
-    """
-    num_dias = calendar.monthrange(ano, mes)[1]
-    folha = []
-    for dia in range(1, num_dias + 1):
-        data = datetime(ano, mes, dia)
-        dia_semana_en = data.strftime('%A')
-        dia_semana_pt = dias_semana_pt.get(dia_semana_en, dia_semana_en)
-        folha.append({
-            'Dia do Mês': f"{dia:02d}",
-            'Dia da Semana': dia_semana_pt,
-            'Assinatura-Manhã': '',
-            'Frequência-Manhã': [''] * 6,
-            'Assinatura-Tarde': '',
-            'Frequência-Tarde': [''] * 6,
-            'Assinatura-Noite': '',
-            'Frequência-Noite': [''] * 4
-        })
-    return folha
-
 
 def mapear_grade_para_dias(grade_manha, grade_tarde, grade_noite):
-    dias = ['Seq', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab']
+    dias = ['segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado']
     mapa = {dia: {'manha': [False]*6, 'tarde': [False]*6, 'noite': [False]*4} for dia in dias}
 
     for i, dia in enumerate(dias):
@@ -178,145 +161,6 @@ def montar_folha_frequencia(ano, mes, mapa_grade):
             'Frequência-Noite': freq_noite
         })
     return folha
-
-def desenhar_retangulo_continuo(current_page, x_inicio, y, lista_freq, largura_unitaria=LARGURA_RETANGULO, altura=ALTURA_RETANGULO):
-    indices = [i for i, val in enumerate(lista_freq) if val == 'cinza']
-    if indices:
-        primeiro = min(indices)
-        ultimo = max(indices)
-        x1 = x_inicio + primeiro * largura_unitaria
-        x2 = x_inicio + (ultimo + 1) * largura_unitaria
-        rect = fitz.Rect(x1, y - altura/2, x2, y + altura/2)
-        current_page.draw_rect(rect, color=(0.8, 0.8, 0.8), fill=(0.8, 0.8, 0.8))
-
-def destacar_domingo(page, y_freq):
-    # Coordenadas para a tarja (ajuste conforme layout)
-    x_inicio = 72
-    x_fim = 565
-    altura = ALTURA_RETANGULO_DOMINGO * 2  # Tarja mais alta que os retângulos individuais
-    rect = fitz.Rect(x_inicio, y_freq - altura/2, x_fim, y_freq + altura/2)
-    page.draw_rect(rect, color=(0.8, 0.8, 0.8), fill=(0.8, 0.8, 0.8))
-    # Inserir texto centralizado
-    texto = "D O M I N G O"
-    largura_tarja = x_fim - x_inicio
-    x_texto = x_inicio + largura_tarja / 2 - (len(texto) * 3)
-    page.insert_text((x_texto, y_freq - 2), texto, fontsize=9, fontname="helv")
-
-# === INÍCIO FERIADOS ===
-# === INÍCIO FERIADOS ===
-def carregar_feriados(excel_path, ano_base, mes_base):
-    """
-    Versão robusta para ler a aba 'feriados' mesmo quando os cabeçalhos não coincidem.
-    - Lê sem assumir cabeçalho.
-    - Varre a partir da linha 11 (índice 10 no pandas, mas aqui usamos header=None e iteramos).
-    - Aceita 'Dia do Mês' como número inteiro ou célula datetime.
-    - Pega a descrição na segunda coluna (col B) mesmo se o cabeçalho estiver ausente ou diferente.
-    Retorna dicionário {dia_int: descricao}.
-    """
-    try:
-        # lê a planilha inteira da aba 'feriados' sem cabeçalho
-        wb = load_workbook(excel_path, data_only=True)
-        if 'feriados' not in wb.sheetnames:
-            print("Aba 'feriados' não encontrada no arquivo.")
-            return {}
-        sheet = wb['feriados']
-
-        feriados_mes = {}
-        # iterar a partir da linha 11 (conforme você indicou: A10/B10 são rótulos, dados começam na 11)
-        start_row = 11
-        # determina número de dias do mês para validar
-        num_dias = calendar.monthrange(ano_base, mes_base)[1]
-
-        row = start_row
-        while True:
-            cell_a = sheet[f"A{row}"].value
-            cell_b = sheet[f"B{row}"].value
-
-            # se ambas células vazias e chegamos a algumas linhas vazias seguidas, encerrar
-            if (cell_a is None or (isinstance(cell_a, str) and str(cell_a).strip() == "")) and \
-               (cell_b is None or (isinstance(cell_b, str) and str(cell_b).strip() == "")):
-                # checar próximo; se várias linhas vazias, assume fim
-                # vamos encerrar quando encontrar 5 linhas vazias consecutivas para segurança
-                # (mas, para simplicidade, se linha atual vazia e próxima também vazia, encerramos)
-                next_a = sheet[f"A{row+1}"].value
-                next_b = sheet[f"B{row+1}"].value
-                if (next_a is None or (isinstance(next_a, str) and str(next_a).strip() == "")) and \
-                   (next_b is None or (isinstance(next_b, str) and str(next_b).strip() == "")):
-                    break
-                else:
-                    row += 1
-                    continue
-
-            # tentar extrair dia inteiro da coluna A
-            dia_int = None
-            if cell_a is None:
-                # nada na coluna A, pular linha
-                row += 1
-                continue
-            try:
-                # se for número (int/float)
-                if isinstance(cell_a, (int, float)):
-                    dia_int = int(cell_a)
-                # se for datetime
-                elif hasattr(cell_a, 'day'):
-                    dia_int = int(cell_a.day)
-                else:
-                    # tentar converter string que contenha número (ex: "12" ou " 12 ")
-                    s = str(cell_a).strip()
-                    # se string no formato dd/mm/aaaa -> extrair dia
-                    if '/' in s or '-' in s:
-                        try:
-                            dt = pd.to_datetime(s, dayfirst=True, errors='coerce')
-                            if not pd.isna(dt):
-                                dia_int = int(dt.day)
-                        except Exception:
-                            dia_int = None
-                    else:
-                        # extrair dígitos da string
-                        nums = ''.join(ch for ch in s if ch.isdigit())
-                        if nums != "":
-                            dia_int = int(nums)
-            except Exception:
-                dia_int = None
-
-            # obter descrição (coluna B)
-            descricao = ""
-            if cell_b is not None:
-                descricao = str(cell_b).strip()
-
-            # validar e armazenar
-            if dia_int is not None and 1 <= dia_int <= num_dias:
-                if descricao == "":
-                    # se descrição vazia, ainda armazena com valor genérico
-                    descricao = "FERIADO"
-                feriados_mes[dia_int] = descricao
-            else:
-                # se encontrarmos algo na coluna A que não foi interpretado como dia válido,
-                # vamos ignorar e continuar — pode ser uma linha de observação
-                pass
-
-            row += 1
-
-        return feriados_mes
-
-    except Exception as e:
-        print(f"Erro ao carregar aba 'feriados' (robusto): {e}")
-        return {}
-# === FIM FERIADOS ===
-
-
-def destacar_feriado(page, y_freq, descricao):
-    """Destaca um feriado no PDF, semelhante à marcação de domingo"""
-    x_inicio = 72
-    x_fim = 565
-    altura = ALTURA_RETANGULO_DOMINGO * 2
-    rect = fitz.Rect(x_inicio, y_freq - altura/2, x_fim, y_freq + altura/2)
-    page.draw_rect(rect, color=(0.8, 0.8, 0.8), fill=(0.8, 0.8, 0.8))
-    texto = descricao.upper()
-    largura_tarja = x_fim - x_inicio
-    x_texto = x_inicio + largura_tarja / 2 - (len(texto) * 2.5)
-    page.insert_text((x_texto, y_freq - 2), texto, fontsize=8, fontname="helv")
-# === FIM FERIADOS ===
 
 def preencher_pdf(dados, modelo_path, saida_path, excel_path):
     nome_abas = dados.get("Nome da Aba")
@@ -389,10 +233,6 @@ def preencher_pdf(dados, modelo_path, saida_path, excel_path):
         except Exception as e:
             print(f"Erro ao ler aba '{aba}': {e}")
 
-    # Carregar feriados (apenas uma vez por folha) - === INÍCIO FERIADOS ===
-    feriados_do_mes = carregar_feriados(excel_path, ANO_REFERENCIA, MES_REFERENCIA)
-    # === FIM FERIADOS ===
-
     doc = fitz.open(modelo_path)
     page = doc[0]
 
@@ -450,76 +290,31 @@ def preencher_pdf(dados, modelo_path, saida_path, excel_path):
     page.insert_text((55, obs_y), dados_pdf["ObsManha"], fontsize=8)
     page.insert_text((245, obs_y), dados_pdf["ObsTarde"], fontsize=8)
     page.insert_text((435, obs_y), dados_pdf["ObsNoite"], fontsize=8)
-    #
-    # Inserir folha de frequência abaixo das observações
-    folha_freq = montar_folha_frequencia1(ANO_REFERENCIA, MES_REFERENCIA)
-    freq_y_start = obs_y + 50  # Posição inicial da folha no PDF
-    # 
-    #-------Imprimir label "Folha de Frequencia"
-    nome_mes_extenso = format_date(datetime(ANO_REFERENCIA, MES_REFERENCIA, 1), "MMMM", locale="pt_BR").upper()
-    label_frequencia = f"FOLHA DE FREQUÊNCIA - {nome_mes_extenso}/{ANO_REFERENCIA}"
 
-    label_y = obs_y + 18  # posição do label acima do quadro
-    page.insert_text((200, label_y), label_frequencia, fontsize=12, fontname="helv", fill=(0, 0, 0))
-    # 
-    for idx, linha in enumerate(folha_freq):
-        # Lógica para controle fino do espaçamento vertical entre linhas
-        if idx >= extra_freq_start:
-            y_freq = freq_y_start + (idx * freq_line_height_default) + \
-                    ((idx - extra_freq_start + 1) * (freq_line_height_extra - freq_line_height_default))
-        else:
-            y_freq = freq_y_start + idx * freq_line_height_default
-
-        texto = f"{linha['Dia do Mês']}  {linha['Dia da Semana']}"   # Ex: "01 S"
-        page.insert_text((36, y_freq), texto, fontsize=9)
-    # 
     # Inserir folha de frequência
     mapa_grade = mapear_grade_para_dias(grade_manha_final, grade_tarde_final, grade_noite_final)
     folha_freq = montar_folha_frequencia(ANO_REFERENCIA, MES_REFERENCIA, mapa_grade)
-
     freq_y_start = obs_y + 50
     current_page = page
-
     for idx, linha in enumerate(folha_freq):
-        
-        # Lógica para controle fino do espaçamento vertical entre linhas (recalcula y a cada iteração)
-        if idx >= extra_freq_start:
-            y_freq = freq_y_start + (idx * freq_line_height_default) + \
-                    ((idx - extra_freq_start + 1) * (freq_line_height_extra - freq_line_height_default))
-        else:
-            y_freq = freq_y_start + idx * freq_line_height_default
-
-        # Se necessário criar nova página (quebra)
+        y_freq = freq_y_start + (idx * freq_line_height_default)
         if y_freq > current_page.rect.height - 50:
             current_page = doc.new_page()
             freq_y_start = 50
-            if idx >= extra_freq_start:
-                y_freq = freq_y_start + (idx * freq_line_height_default) + \
-                        ((idx - extra_freq_start + 1) * (freq_line_height_extra - freq_line_height_default))
-            else:
-                y_freq = freq_y_start + idx * freq_line_height_default
-
-        # Domingo
-        if linha['Dia da Semana'] == 'Dom':
-            destacar_domingo(current_page, y_freq)
-
-        # === INÍCIO FERIADOS ===
-        # Verifica se o dia (inteiro) está entre os feriados carregados
-        try:
-            dia_inteiro = int(linha['Dia do Mês'])
-            if dia_inteiro in feriados_do_mes:
-                descricao_feriado = feriados_do_mes.get(dia_inteiro, "")
-                if descricao_feriado:
-                    destacar_feriado(current_page, y_freq, descricao_feriado)
-        except Exception:
-            pass
-        # === FIM FERIADOS ===
-
-        # Desenhar retângulos de frequência
+            y_freq = freq_y_start
+        # Desenhar retângulos contínuos por turno
+        def desenhar_retangulo_continuo(current_page, x_inicio, y, lista_freq, largura_unitaria=LARGURA_RETANGULO, altura=ALTURA_RETANGULO):
+            indices = [i for i, val in enumerate(lista_freq) if val == 'cinza']
+            if indices:
+                primeiro = min(indices)
+                ultimo = max(indices)
+                x1 = x_inicio + primeiro * largura_unitaria
+                x2 = x_inicio + (ultimo + 1) * largura_unitaria
+                rect = fitz.Rect(x1, y - altura/2, x2, y + altura/2)
+                current_page.draw_rect(rect, color=(0.8, 0.8, 0.8), fill=(0.8, 0.8, 0.8))
         desenhar_retangulo_continuo(current_page, 114, y_freq, linha['Frequência-Manhã'])
         desenhar_retangulo_continuo(current_page, 298, y_freq, linha['Frequência-Tarde'])
         desenhar_retangulo_continuo(current_page, 483, y_freq, linha['Frequência-Noite'], largura_unitaria=LARGURA_RETANGULO_NOITE, altura=ALTURA_RETANGULO)
-
     doc.save(saida_path)
     doc.close()
 

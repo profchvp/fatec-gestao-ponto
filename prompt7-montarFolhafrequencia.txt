@@ -1,0 +1,16 @@
+
+Refatore o programa anexo faça o incremento: Monta folha de frequencia (logo abaixo da grade horária)
+No processamento de cada aba de  professor, temos o quadro  "Folha de Frequencia" que tem a seguinte configuração:
+Coluna "Dia do Mes"; 
+"Dia da Semana"; 
+"Assinatura-Manha"; 
+"Frequencia-Manha" (Esta possui 6 posições para ser marcada com "x", oriundo  da grade horária do professor, que j foi tratado em "Inserir as três grades lado a lado") ;
+"Assinatura-Tarde"; 
+"Frequencia-Tarde" (Esta possui 6 posições para ser marcada com "x", oriundo  da grade horária do professor, que j foi tratado em "Inserir as três grades lado a lado");
+"Assinatura-Noite" ; 
+"Frequencia-Noite " (Esta possui 4 posições para ser marcada com "x", oriundo  da grade horária do professor, que j foi tratado em "Inserir as três grades lado a lado")
+
+A montagem desta folha de frequencia  é iniciado com 01 e limitado a 30, 31 28 ou 29 Verificar ano bissexto.
+  Montagem dos valores:       		 
+	"Dia do Mes" = inciado em 01 para os demais, somar +1 até o limite do ultimo dia do mes
+    "Dia da Semana": deve ser de acordo com o calendario(Buscar alguma biblioteca que, dado o ano/mes/dia; ele conclua o dia da semana	
